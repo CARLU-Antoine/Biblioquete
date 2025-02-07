@@ -64,14 +64,6 @@ npm start
 yarn start
 ```
 
-## 📖 Documentation
-
-La documentation complète du projet est disponible dans le dossier `/docs`, incluant :
-- Guide d'architecture technique
-- API Reference
-- Guide d'utilisation
-- Documentation des algorithmes de recherche
-
 ## 🧪 Tests
 
 ```bash
@@ -100,6 +92,3 @@ Projet réalisé par une équipe de 2-3 personnes dans le cadre d'un projet acad
 - Date de rendu : 14 février 2025
 - Présentation : 20 minutes ou vidéo pitch de 5 minutes
 
-## 📝 Licence
-
-Ce projet est sous licence MIT - voir le fichier [LICENSE.md](LICENSE.md) pour plus de détails.

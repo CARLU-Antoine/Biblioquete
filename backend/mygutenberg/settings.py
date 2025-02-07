@@ -77,10 +77,16 @@ WSGI_APPLICATION = 'mygutenberg.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'moteur_de_recherche',  # Remplace par le nom de ta base de données
+        'USER': 'postgres',  # Utilisateur PostgreSQL
+        'PASSWORD': 'Island789+',  # Mot de passe de l'utilisateur
+        'HOST': 'localhost',  # Utilise localhost si tu as PostgreSQL en local
+        'PORT': '5432',  # Le port par défaut pour PostgreSQL
     }
 }
+
+
 
 
 # Password validation

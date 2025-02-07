@@ -10,6 +10,7 @@ from .views import (
     InvertedIndexSearchView,
     RankedBookSearchView,
     ClosenessBookSearchView,
+    BookTextHighlightView,
 )
 
 urlpatterns = [
@@ -20,8 +21,8 @@ urlpatterns = [
     path('book/<int:book_id>/text/', BookTextView.as_view(), name='fetch_book_text'),
     path('search/', BookSearchView.as_view(), name='search'),
     path('search/advanced/', AdvancedBookSearchView.as_view(), name='advanced-search'),
-    path('search/inverted/', InvertedIndexSearchView.as_view(), name='inverted-search'),
+    path('search/inverted/<str:word>/', InvertedIndexSearchView.as_view(), name='inverted-search'),
     path('search/ranked/', RankedBookSearchView.as_view(), name='ranked-search'),
     path('search/closeness/', ClosenessBookSearchView.as_view(), name='closeness-search'),
-
+    path('book/<int:book_id>/text/highlight/', BookTextHighlightView.as_view(), name='highlight-book-text'),
 ]

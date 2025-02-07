@@ -1,9 +1,6 @@
+# models.py
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-import re
 
-# Modèle des auteurs
 class Author(models.Model):
     name = models.CharField(max_length=255, unique=True)
     birth_year = models.IntegerField(null=True, blank=True)
@@ -12,10 +9,9 @@ class Author(models.Model):
     def __str__(self):
         return self.name
 
-# Modèle des livres
 class Book(models.Model):
     gutenberg_id = models.IntegerField(unique=True)
-    title = models.CharField(max_length=255)
+    title = models.TextField(null=True, blank=True)
     author = models.ForeignKey(Author, on_delete=models.SET_NULL, null=True, related_name='books')
     languages = models.TextField(null=True, blank=True)
     text = models.TextField(null=True, blank=True)
@@ -31,44 +27,34 @@ class Book(models.Model):
     def __str__(self):
         return self.title
 
-# Modèle pour l'index inversé
 class InvertedIndex(models.Model):
     word = models.CharField(max_length=255, unique=True)
-    books = models.ManyToManyField(Book)
-    positions = models.JSONField(default=list, blank=True)  # Stocker les positions des mots
-    
+    books = models.ManyToManyField(Book, related_name="indexed_words")
+    occurrences = models.IntegerField(default=0)
+    positions = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.word
 
     def update_positions(self, book, positions):
-        """Met à jour les positions d'un mot dans un livre"""
-        # Ajoute les nouvelles positions de ce livre pour le mot
-        self.positions.append({'book': book.id, 'positions': positions})
-        self.save()
+        """Mettre à jour les positions d'un mot dans un livre."""
+        # Convertir positions en liste si ce n'est pas déjà le cas
+        positions = list(positions)
 
-# Fonction d'indexation des livres
-def index_book(book):
-    """Crée une indexation inversée du texte d'un livre avec les positions des mots"""
-    if not book.text:
-        return
-    
-    words = re.findall(r'\w+', book.text.lower())  # Extraction des mots dans le texte
-    word_positions = {}
+        # Trouver l'entrée existante pour ce livre
+        existing_entry = next((entry for entry in self.positions if entry['book'] == book.id), None)
 
-    for index, word in enumerate(words):
-        if word not in word_positions:
-            word_positions[word] = []
-        word_positions[word].append(index)
+        if existing_entry:
+            # Fusionner les positions sans doublons
+            existing_entry['positions'] = list(set(existing_entry['positions'] + positions))
+            existing_entry['occurrences'] = len(existing_entry['positions'])
+        else:
+            # Ajouter une nouvelle entrée
+            self.positions.append({
+                'book': book.id, 
+                'positions': positions, 
+                'occurrences': len(positions)
+            })
 
-    for word, positions in word_positions.items():
-        # Créer ou récupérer une entrée dans l'index inversé pour ce mot
-        index_entry, created = InvertedIndex.objects.get_or_create(word=word)
-        index_entry.books.add(book)
-        index_entry.update_positions(book, positions)  # Mettre à jour les positions du mot dans ce livre
-
-# Signal pour mettre à jour l'index après l'ajout/modification d'un livre
-@receiver(post_save, sender=Book)
-def update_inverted_index(sender, instance, **kwargs):
-    """Met à jour l'index inversé après la sauvegarde d'un livre"""
-    index_book(instance)
+        # Mettre à jour le total des occurrences
+        self.occurrences = sum(entry['occurrences'] for entry in self.positions)
