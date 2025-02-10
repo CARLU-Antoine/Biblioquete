@@ -12,7 +12,5 @@ class BookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
         fields = [
-            'id', 'gutenberg_id', 'title', 'author', 'languages', 'summary',
-            'subjects', 'bookshelves', 'formats', 'media_type',
-            'copyright', 'download_count', 'translators'
+            'id', 'title', 'author', 'languages', 'summary', 'formats'
         ]
