@@ -41,7 +41,7 @@ class Command(BaseCommand):
             cursor.execute("TRUNCATE TABLE books_invertedindex_books, books_invertedindex RESTART IDENTITY CASCADE")
 
         books = Book.objects.all()
-        num_workers = 100  # Ajuster selon la config PostgreSQL
+        num_workers = 50  # Ajuster selon la config PostgreSQL
         global_word_index = defaultdict(lambda: defaultdict(list))
 
         # Étape 1 : Analyser les livres et construire l'index global
@@ -129,24 +129,37 @@ class Command(BaseCommand):
                 word_to_id.update({word: index_id for index_id, word in results})
 
     def analyze_book(self, book):
-        """Analyse un livre et retourne un dictionnaire de mots avec leurs positions."""
+        """Analyse un livre et retourne un dictionnaire de mots avec leurs positions et leurs sections."""
         languages = [lang.strip().lower() for lang in book.languages.split(',')]
         all_stopwords = set()
         for lang_code in languages:
             all_stopwords.update(self.stopwords_cache.get(lang_code, set()))
 
         word_pattern = re.compile(r'\b\w+\b')
-        words = word_pattern.findall(book.text.lower())
-        word_positions = defaultdict(list)
-        new_positions = []
 
-        # Liste pour stocker les positions dans le texte filtré (sans stopwords)
-        adjusted_position = 0
+        # Champs à analyser (title, summary, authors, text)
+        fields = {
+            'title': book.title,
+            'summary': book.summary,
+            'author': book.author.name if book.author else '',
+            'text': book.text
+        }
 
-        for index, word in enumerate(words):
-            if word and word not in all_stopwords and len(word) > 1:
-                word_positions[word].append(adjusted_position)
-                adjusted_position += 1  # Ajuster la position pour le texte sans stopwords
-                new_positions.append(word)  # Liste des mots restants
+        word_positions = defaultdict(lambda: defaultdict(list))  # Dictionnaire de positions par champ
+        new_positions = []  # Liste des mots restants après suppression des stopwords
+
+        adjusted_position = 0  # Position ajustée dans le texte filtré (sans stopwords)
+
+        # Analyser chaque champ indépendamment pour garder les positions correctes
+        for field, content in fields.items():
+            if content:
+                words = word_pattern.findall(content.lower())
+                field_positions = []
+                for word in words:
+                    if word and word not in all_stopwords and len(word) > 1:
+                        word_positions[word][field].append(adjusted_position)
+                        field_positions.append(word)  # Liste des mots restants dans ce champ
+                        adjusted_position += 1  # Ajuster la position pour le texte filtré
+                new_positions.extend(field_positions)
 
         return dict(word_positions), new_positions
