@@ -1,48 +1,85 @@
-import {useState} from 'react';
-import {StyleSheet,Text,View,TextInput,Image,Pressable} from 'react-native';
+import {useState,useEffect} from 'react';
+import {StyleSheet,Text,View,TextInput,Image,Pressable,ScrollView,Keyboard} from 'react-native';
 import { Checkbox } from 'expo-checkbox';
 import {Dimensions} from 'react-native';
 import {FontAwesome,MaterialIcons} from '@expo/vector-icons';
 import useIsWeb from '../techniqueTools/useInWeb';
 export const {width: screenWidth} = Dimensions.get("window");
 export const {height: screenHeight} = Dimensions.get("window");
-
+import {BookService,BookSearch,WordSuggest} from '../services/bookService';
+import RenderHTML from 'react-native-render-html';
 
 export default function MainPage(props){
     //const [suggests,setSuggest] = useState([]);
-    const [filterCheckbox,setFilterCheckbox] = useState(false);
+    const [authorCheckbox,setAuthorrCheckbox] = useState(false);
     const [titleCheckbox,setTitleCheckbox] = useState(false);
     const [textCheckbox,setTextCheckbox] = useState(false);
     const [search,setSearch] = useState("");
+    const [booksInfos,setBooksInfos] = useState([]);
+    const [suggestsInfos,setSuggestInfos] = useState([]);
+    const [maxPagination,setMaxPagination] = useState(0);
+    const [pagination,setPagination] = useState(1);
     const [popUpAdvancedSearch,setPopUpAdvancedSearch] = useState(false);
+    const [text,setText] = useState("");
+    const [where,setWhere] = useState("/author+title+text");
     const isWeb = useIsWeb();
+
+    useEffect(() => {
+      (async ()=>{
+        response = await BookService(pagination);
+        setBooksInfos(response.results);
+        setMaxPagination(Math.ceil(response.count/5))
+      })()
+    },[pagination]);
+
+    useEffect(() => {
+      (async ()=>{
+        response = await BookSearch(search);
+        setBooksInfos(response.results);
+        setMaxPagination(Math.ceil(response.count/5))
+      })()
+    },[search]);
+
+    useEffect(() => {
+      let title = titleCheckbox ? "title" : "";
+      let text = textCheckbox ? "text" : "";
+      let author = titleCheckbox ? "author" : "";
+      //setWhere();
+    },[authorCheckbox,titleCheckbox,textCheckbox]);
+
+    const handleSubmit = async () => {
+      console.log('Validation par clavier ! Texte soumis :', text);
+      searchResponse = await BookSearch(text,where);
+      suggestResponse = await WordSuggest(text)
+      console.log("tessss",suggestResponse.suggestions);
+      setSuggestInfos(suggestResponse.suggestions);
+      setBooksInfos(searchResponse.books);
+      Keyboard.dismiss();
+    };
 
     let books = [];
     let suggests = [];
 
-    for(let i=0;i<4;i++){
+    booksInfos.map((book,i)=>{
       books.push(
       <Pressable key={i} style={{width:"100%",height:isWeb ? screenHeight*0.19 : screenHeight*0.17,flexDirection:"row",backgroundColor:"white",alignItems:"center",paddingHorizontal:"2%"}}>
         <Image
-          source={require("../assets/pg791.cover.medium.jpg")}
+          source={{uri: book.formats["image/jpeg"]}}
           style={{width:screenWidth*0.2,height:screenHeight*0.15}}
         ></Image>
         <View style={{height:"90%",margin:"2%",width:"75%"}}>
-          <Text style={{fontSize: 20,fontWeight:"500"}}>Titre</Text>
-          <Text style={{fontSize: 10,fontWeight:"300"}}>Auteur (date - date)</Text>
-          <Text style={{fontSize: 10,fontWeight:"300"}}>Préambule - Eo adducta re per Isauriam, rege 
-            Persarum bellis finitimis inligato repellenteque
-            a conlimitiis suis ferocissimas gentes, quae 
-            mente quadam versabili hostiliter eum saep...</Text>
+          <RenderHTML source={{ html: book.title }} tagsStyles={{body: {fontSize: 15,fontWeight: "400" }}} />
+          <RenderHTML source={{ html: book.author.name }} tagsStyles={{body: {fontSize: 12,fontWeight: "350" }}} />
+          <RenderHTML source={{ html: book.summary ? `${book.summary.substring(0, 200)}...` : "Résumé non disponible" }} tagsStyles={{body: {fontSize: 10,fontWeight: "300" }}}/>
         </View>
       </Pressable>)
-    }
+    })
 
-    for(let i=0;i<3;i++){
+    suggestsInfos.map((suggest,i)=>{
       suggests.push(
-        <Pressable key={i} style={{borderWidth:0.5,borderRadius:7,padding:2,marginLeft:"1%"}}><Text>Antoinettes</Text></Pressable>
+        <Pressable key={i} style={{borderWidth:0.5,borderRadius:7,padding:2,marginLeft:"1%"}}><Text>{suggest.word}</Text></Pressable>
       )
-    }
+    })
 
     return (
     <View style={styles.container}>
@@ -53,8 +90,9 @@ export default function MainPage(props){
           <View style={{flexDirection:"row",justifyContent:"flex-end"}}>
               <TextInput
                   maxLength={30}
-                  onChangeText={(text)=>setSearch(text)}
+                  onChangeText={(text)=>setText(text)}
                   style={{width:screenWidth*0.54,height:screenHeight*0.040,borderWidth:0.5,maxWidth:"550px",borderRadius:10,fontSize:13}}
+                  onSubmitEditing={handleSubmit}  // Ecoute l'appui sur la touche "Entrée"
               />
               {isWeb ? 
                 <></>
@@ -68,8 +106,8 @@ export default function MainPage(props){
           <View style={{borderWidth:0.5,borderColor:"black",width:"100%",flex:1,position:"absolute",marginTop:screenHeight*0.040,backgroundColor:"white",justifyContent:"center",paddingTop:"10%",paddingBottom:"25%",zIndex:2,borderRadius:5}}>
             <Text style={{fontSize:15,textDecorationLine:'underline',fontWeight: 'bold',alignSelf:"center"}}>Rechercher dans:</Text>
             <View style={styles.checkboxContainer}>
-              <Checkbox value={filterCheckbox} onValueChange={setFilterCheckbox} style={styles.checkbox}/>
-              <Text style={styles.checkboxLLabel}>Filtrer</Text>
+              <Checkbox value={authorCheckbox} onValueChange={setAuthorCheckbox} style={styles.checkbox}/>
+              <Text style={styles.checkboxLLabel}>Auteur</Text>
             </View>
             <View style={styles.checkboxContainer}>
               <Checkbox value={titleCheckbox} onValueChange={setTitleCheckbox} style={styles.checkbox}/>
@@ -90,9 +128,9 @@ export default function MainPage(props){
         <Text>Suggestion(s):</Text>
         {suggests}
       </View>}
-      
+      <ScrollView>
       {books}
-
+      </ScrollView>
       {/*Footer*/}  
       {isWeb ? 
         <></>
@@ -102,11 +140,11 @@ export default function MainPage(props){
           <Text style={{fontSize:12,marginHorizontal:"13%"}}>Aucune recherche lance</Text>
         </View>
         <View style={{alignSelf:"flex-end",justifyContent:"flex-end"}}>
-          <Text style={{fontSize:10,marginBottom:"10%"}}>1/270</Text>
+          <Text style={{fontSize:10,marginBottom:"10%"}}>{pagination}/{maxPagination}</Text>
         </View>
         <View style={{flexDirection:"row"}}>
           <Pressable
-            onPress={() => console.log("Pressé !")}
+            onPress={() => pagination == 1 ? 0 : setPagination(pagination-1)}
             style={({ pressed }) => ({
               backgroundColor:"white",
               borderWidth: 0.5,
@@ -118,7 +156,7 @@ export default function MainPage(props){
             <MaterialIcons name="arrow-back-ios" size={screenWidth * 0.06} color="black" style={{padding:"1%", margin:"1%"}}/>
             </Pressable>
             <Pressable
-              onPress={() => console.log("Pressé !")}
+              onPress={() => pagination == maxPagination ? 0 : (setPagination(pagination+1),console.log("+++"))}
               style={({ pressed }) => ({
                 backgroundColor:"white",
                 borderWidth: 0.5,
