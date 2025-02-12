@@ -13,7 +13,7 @@ export default function MainPage(props){
     const [filterCheckbox,setFilterCheckbox] = useState(false);
     const [titleCheckbox,setTitleCheckbox] = useState(false);
     const [textCheckbox,setTextCheckbox] = useState(false);
-    const [emailPretension,setEmailPretension] = useState("");
+    const [search,setSearch] = useState("");
     const [popUpAdvancedSearch,setPopUpAdvancedSearch] = useState(false);
     const isWeb = useIsWeb();
 
@@ -47,13 +47,13 @@ export default function MainPage(props){
     return (
     <View style={styles.container}>
       {/*header*/}
-      <View style={{width:"100%",height:isWeb ? screenHeight*0.09 : screenHeight*0.115,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",paddingTop:"0%",paddingHorizontal:"4%",paddingBottom:screenHeight*0.02,borderBottomWidth:0.5,borderColor:"black",backgroundColor:"white"/*,elevation:5*/}}>
+      <View style={{width:"100%",height:isWeb ? screenHeight*0.09 : screenHeight*0.115,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",paddingTop:"0%",paddingHorizontal:"4%",paddingBottom:screenHeight*0.02,borderBottomWidth:0.5,borderColor:"black",backgroundColor:"white"}}>
         <Text style={{fontSize: screenHeight*0.03,fontWeight:"500"}}>Bibliothèque</Text>
         <View>
           <View style={{flexDirection:"row",justifyContent:"flex-end"}}>
               <TextInput
                   maxLength={30}
-                  onChangeText={(text)=>setEmailPretension(text)}
+                  onChangeText={(text)=>setSearch(text)}
                   style={{width:screenWidth*0.54,height:screenHeight*0.040,borderWidth:0.5,maxWidth:"550px",borderRadius:10,fontSize:13}}
               />
               {isWeb ? 
@@ -65,7 +65,7 @@ export default function MainPage(props){
           </View>
           {/*Pop up recherche avancée*/}
           {popUpAdvancedSearch ?
-          <View style={{borderWidth:0.5,borderColor:"black",width:"100%",flex:1,position:"absolute",marginTop:screenHeight*0.040,backgroundColor:"white",justifyContent:"center",paddingTop:"10%",paddingBottom:"25%",zIndex:2}}>
+          <View style={{borderWidth:0.5,borderColor:"black",width:"100%",flex:1,position:"absolute",marginTop:screenHeight*0.040,backgroundColor:"white",justifyContent:"center",paddingTop:"10%",paddingBottom:"25%",zIndex:2,borderRadius:5}}>
             <Text style={{fontSize:15,textDecorationLine:'underline',fontWeight: 'bold',alignSelf:"center"}}>Rechercher dans:</Text>
             <View style={styles.checkboxContainer}>
               <Checkbox value={filterCheckbox} onValueChange={setFilterCheckbox} style={styles.checkbox}/>
