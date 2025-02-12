@@ -10,6 +10,7 @@ GUTENDEX_API = "https://gutendex.com/books/"
 MAX_BOOKS = 1664
 MAX_WORKERS = 200  # Ajuste en fonction de la capacité de ton système
 MIN_WORDS = 10000  # Seuil minimum de mots
+MAX_WORDS = 30000  # Seuil maximum de mots
 
 class Command(BaseCommand):
     help = "Import books from Gutendex API and store them in the database."
@@ -20,7 +21,7 @@ class Command(BaseCommand):
             return None
 
         try:
-            text_response = requests.get(text_url, timeout=20)
+            text_response = requests.get(text_url, timeout=3)
             text_response.raise_for_status()
             text = text_response.text
             
@@ -67,7 +68,7 @@ class Command(BaseCommand):
 
                             word_count = len(text.split())
 
-                            if word_count < MIN_WORDS:
+                            if word_count < MIN_WORDS or word_count > MAX_WORDS:
                                 continue
 
                             # Traiter l'auteur
