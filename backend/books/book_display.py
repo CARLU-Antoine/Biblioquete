@@ -3,6 +3,7 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Count
 from .models import Book, Author, InvertedIndex
 from .serializers import BookSerializer
@@ -10,9 +11,15 @@ from collections import defaultdict
 
 
 # ✅ Liste des livres
+class BookPagination(PageNumberPagination):
+    page_size = 5  # Nombre de livres par page
+    page_size_query_param = 'page_size'  # Option pour permettre de modifier la taille de la page
+    max_page_size = 100  # Taille maximale de la page
+
 class BookListView(generics.ListAPIView):
-    queryset = Book.objects.select_related('author')
+    queryset = Book.objects.select_related('author').order_by('id')
     serializer_class = BookSerializer
+    pagination_class = BookPagination  # Utiliser la classe de pagination définie
 
 # ✅ Détail d'un livre
 class BookDetailView(generics.RetrieveAPIView):
