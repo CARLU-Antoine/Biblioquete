@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-t5x_-5-*te)g9r+#$%dgb79unr!41l8)m69g3(w#(!4vmu9wvn
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.1.47', 'localhost', '127.0.0.1','172.16.8.58']
+ALLOWED_HOSTS = ['192.168.1.47', 'localhost', '127.0.0.1','172.16.8.58','192.168.34.24','192.168.1.100']
 
 
 
@@ -40,9 +40,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'books',
+    'corsheaders'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -51,6 +53,16 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://192.168.1.100:8000",  # React local
+]
+
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+
+CORS_ALLOW_HEADERS = ["content-type", "authorization"]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'mygutenberg.urls'
 
@@ -81,7 +93,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'moteur_de_recherche',  # Remplace par le nom de ta base de données
         'USER': 'postgres',  # Utilisateur PostgreSQL
-        'PASSWORD': 'Island789+',  # Mot de passe de l'utilisateur
+        'PASSWORD': 'oliver',  # Mot de passe de l'utilisateur
         'HOST': 'localhost',  # L'adresse de la base de données
         'PORT': '5432',  # Le port par défaut pour PostgreSQL
     }

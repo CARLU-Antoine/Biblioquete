@@ -8,7 +8,9 @@ from .models import Book, InvertedIndex
 from .serializers import BookSerializer
 from Levenshtein import distance as levenshtein_distance
 from collections import defaultdict
-
+from rest_framework.pagination import PageNumberPagination
+from django.core.paginator import Paginator
+from django.core.cache import cache
 
 
 # ✅ Recherche avancée avec RegEx (optimisée avec indexation inversée)
@@ -78,113 +80,132 @@ class AdvancedBookSearchView(APIView):
 
         return Response({'books': list(books)}, status=status.HTTP_200_OK)
 
-
 class InvertedIndexSearchView(APIView):
     def get(self, request, word, search_method):
         word = word.lower().strip()
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
 
         if not word:
             return Response({'error': 'Veuillez fournir un mot-clé.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Recherche de l'index pour le mot exact (ignorant la casse)
-            index_entry = InvertedIndex.objects.filter(word__iexact=word).first()
+            full_results_cache_key = f'search_full_{word}_{search_method}'
+            full_results = cache.get(full_results_cache_key)
+            
+            if full_results is None:
+                full_results = self.perform_search(word, search_method)
+                cache.set(full_results_cache_key, full_results, timeout=1800)
+            
+            paginator = Paginator(full_results['books'], page_size)
+            try:
+                paginated_books = paginator.page(page)
+            except:
+                return Response({'error': 'Page invalide.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not index_entry:
-                return Response({'message': f'Aucun livre trouvé pour "{word}".'}, status=status.HTTP_404_NOT_FOUND)
-
-            books = []
-
-            # Fonction pour surligner les mots dans le texte
-            def highlight_text(text, word):
-                if isinstance(text, str):  # Vérifier si le texte est bien une chaîne
-                    # Utilisation de regex pour rechercher le mot entier et non une sous-chaîne partielle
-                    highlighted_text = re.sub(rf'\b({re.escape(word)})\b', r'<mark>\1</mark>', text, flags=re.IGNORECASE)
-                    return highlighted_text
-                return text  # Retourner le texte tel quel si ce n'est pas une chaîne
-
-            # Définir les champs à rechercher en fonction de la méthode de recherche
-            search_fields = {
-                'title': ['title'],
-                'author': ['author'],
-                'summary': ['summary'],
-                'text': ['text'],
-                'all': ['title', 'author', 'summary', 'text']
+            response_data = {
+                'word': word,
+                'search_methods': full_results['search_methods'],
+                'total_books': len(full_results['books']),
+                'total_occurrences': full_results['total_occurrences'],
+                'books': paginated_books.object_list
             }
 
-            # Séparer les méthodes de recherche si elles sont combinées avec +
-            search_methods = search_method.split('+')
-            
-            # Vérifier si toutes les méthodes sont valides
-            for method in search_methods:
-                if method not in search_fields:
-                    return Response(
-                        {'error': f'Méthode de recherche invalide: {method}. Utilisez "title", "author", "summary", "text" ou leurs combinaisons avec "+".'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-            # Combiner tous les champs à rechercher
-            fields_to_search = []
-            for method in search_methods:
-                fields_to_search.extend(search_fields[method])
-            fields_to_search = list(set(fields_to_search))  # Supprimer les doublons
-
-            for position in index_entry.positions:
-                book_id = position.get("book")  # Extrait l'ID du livre depuis la structure JSON
-                occurrences = position.get("occurrences", 0)  # Nombre d'occurrences dans ce livre
-
-                if book_id:
-                    # Chercher le livre dans la table Book en utilisant l'ID
-                    book = Book.objects.select_related('author').filter(id=book_id).first()
-
-                    if book:
-                        # Vérifier si le mot est trouvé dans au moins un des champs recherchés
-                        found_in_requested_fields = False
-                        book_data = BookSerializer(book).data
-                        book_data['occurrences'] = occurrences
-
-                        # Vérifier et surligner pour chaque champ demandé
-                        for field in fields_to_search:
-                            if field in position["positions"]:
-                                if field == 'author':
-                                    # Traitement spécial pour le champ auteur
-                                    author_name = book_data.get('author', {}).get('name', '')
-                                    if author_name:
-                                        book_data['author']['name'] = highlight_text(author_name, word)
-                                        found_in_requested_fields = True
-                                elif field in book_data:
-                                    book_data[field] = highlight_text(book_data[field], word)
-                                    found_in_requested_fields = True
-
-                        # Vérifier si le mot est trouvé dans le texte uniquement si la recherche inclut le texte
-                        text_exists = False
-                        if 'text' in fields_to_search and hasattr(book, 'text') and isinstance(book.text, str):
-                            if word in book.text.lower():
-                                text_exists = True
-                                found_in_requested_fields = True
-
-                        book_data['word_found_in_text'] = text_exists
-
-                        # Ajouter le livre uniquement si le mot a été trouvé dans au moins un des champs recherchés
-                        if found_in_requested_fields:
-                            books.append(book_data)
-
-            if not books:
-                return Response(
-                    {'message': f'Aucun livre trouvé dans les champs "{", ".join(search_methods)}" pour "{word}".'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            return Response({
-                'word': word,
-                'search_methods': search_methods,
-                'books': books
-            }, status=status.HTTP_200_OK)
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(f"❌ Erreur lors de la recherche pour '{word}': {str(e)}")
             return Response({'error': 'Erreur interne du serveur.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def perform_search(self, word, search_method):
+        index_entry = InvertedIndex.objects.filter(word__iexact=word).first()
+
+        if not index_entry:
+            return {
+                'books': [],
+                'search_methods': [],
+                'total_occurrences': 0
+            }
+
+        books = []
+        occurrences_by_field = {
+            'title': 0,
+            'author': 0,
+            'summary': 0,
+            'text': 0
+        }
         
+        def highlight_text(text, word):
+            if isinstance(text, str):
+                highlighted_text = re.sub(rf'\b({re.escape(word)})\b', r'<mark>\1</mark>', text, flags=re.IGNORECASE)
+                return highlighted_text
+            return text
+
+        search_fields = {
+            'title': ['title'],
+            'author': ['author'],
+            'summary': ['summary'],
+            'text': ['text'],
+            'all': ['title', 'author', 'summary', 'text']
+        }
+
+        search_methods = search_method.split('+')
+        for method in search_methods:
+            if method not in search_fields:
+                raise ValueError(f'Méthode de recherche invalide: {method}')
+
+        fields_to_search = list(set(sum([search_fields[method] for method in search_methods], [])))
+
+        for position in index_entry.positions:
+            book_id = position.get("book")
+            
+            if book_id:
+                book = Book.objects.select_related('author').filter(id=book_id).first()
+
+                if book:
+                    found_in_requested_fields = False
+                    book_data = BookSerializer(book).data
+                    book_occurrences = 0
+
+                    # Calculer les occurrences pour chaque champ demandé
+                    for field in fields_to_search:
+                        field_positions = position["positions"].get(field, [])
+                        field_occurrences = len(field_positions) if isinstance(field_positions, list) else 0
+                        
+                        if field_occurrences > 0:
+                            found_in_requested_fields = True
+                            occurrences_by_field[field] += field_occurrences
+                            book_occurrences += field_occurrences
+
+                            if field == 'author':
+                                author_name = book_data.get('author', {}).get('name', '')
+                                if author_name:
+                                    book_data['author']['name'] = highlight_text(author_name, word)
+                            elif field in book_data:
+                                book_data[field] = highlight_text(book_data[field], word)
+
+                    text_exists = False
+                    if 'text' in fields_to_search and hasattr(book, 'text') and isinstance(book.text, str):
+                        if word in book.text.lower():
+                            text_exists = True
+                            found_in_requested_fields = True
+
+                    book_data['word_found_in_text'] = text_exists
+                    book_data['occurrences'] = book_occurrences
+
+                    if found_in_requested_fields:
+                        books.append(book_data)
+
+        # Calculer le total des occurrences uniquement pour les champs recherchés
+        total_occurrences = sum(occurrences_by_field[field] for field in fields_to_search)
+
+        return {
+            'books': books,
+            'search_methods': search_methods,
+            'total_occurrences': total_occurrences
+        }   
+    
+     
 # ✅ Recherche optimisée avec l'index inversé avec l'algo Levenshtein et l'arbre jaccard pour afficher des suggestions
 def jaccard_similarity(set1, set2):
     """ Calcule la similarité de Jaccard entre deux ensembles de mots. """
