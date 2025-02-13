@@ -6,8 +6,9 @@ import {FontAwesome,MaterialIcons} from '@expo/vector-icons';
 import useIsWeb from '../techniqueTools/useInWeb';
 export const {width: screenWidth} = Dimensions.get("window");
 export const {height: screenHeight} = Dimensions.get("window");
-import {BookService,BookSearch,WordSuggest} from '../services/bookService';
+import {BookService,CombinedSearch} from '../services/bookService';
 import RenderHTML from 'react-native-render-html';
+import Loader from './loader';
 
 export default function MainPage(props){
     //const [suggests,setSuggest] = useState([]);
@@ -23,22 +24,35 @@ export default function MainPage(props){
     const [text,setText] = useState("");
     const [where,setWhere] = useState("/author+title+text");
     const isWeb = useIsWeb();
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [statusMessage, setStatusMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
+    
     useEffect(() => {
       (async ()=>{
         response = await BookService(pagination);
         setBooksInfos(response.results);
-        setMaxPagination(Math.ceil(response.count/5))
+        setMaxPagination(Math.ceil(response.total_pages))
       })()
     },[pagination]);
 
     useEffect(() => {
-      (async ()=>{
-        response = await BookSearch(search);
-        setBooksInfos(response.results);
-        setMaxPagination(Math.ceil(response.count/5))
-      })()
-    },[search]);
+      if (search) {
+        (async () => {
+          console.log('Début de la requête CombinedSearch...');
+          try {
+            const response = await CombinedSearch(search, where, setLoadingProgress);
+            setBooksInfos(response.books);
+            setSuggestInfos(response.suggestions);
+            setMaxPagination(Math.ceil(response.total_pages));
+          } catch (error) {
+            console.error('Erreur lors de la recherche:', error);
+          }
+        })();
+      }
+    }, [search]);
+    
 
     useEffect(() => {
       let title = titleCheckbox ? "title" : "";
@@ -49,12 +63,19 @@ export default function MainPage(props){
 
     const handleSubmit = async () => {
       console.log('Validation par clavier ! Texte soumis :', text);
-      searchResponse = await BookSearch(text,where);
-      suggestResponse = await WordSuggest(text)
-      console.log("tessss",suggestResponse.suggestions);
-      setSuggestInfos(suggestResponse.suggestions);
-      setBooksInfos(searchResponse.books);
-      Keyboard.dismiss();
+      setIsLoading(true);
+      setLoadingProgress(0);
+      try {
+        const response = await CombinedSearch(text, where, setLoadingProgress);
+        setBooksInfos(response.books);
+        setSuggestInfos(response.suggestions);
+        setMaxPagination(Math.ceil(response.total_pages));
+      } catch (error) {
+        console.error("Erreur lors de la recherche:", error);
+      } finally {
+        setIsLoading(false);
+        Keyboard.dismiss();
+      }
     };
 
     let books = [];
@@ -75,14 +96,17 @@ export default function MainPage(props){
       </Pressable>)
     })
 
-    suggestsInfos.map((suggest,i)=>{
-      suggests.push(
-        <Pressable key={i} style={{borderWidth:0.5,borderRadius:7,padding:2,marginLeft:"1%"}}><Text>{suggest.word}</Text></Pressable>
-      )
-    })
+    if (Array.isArray(suggestsInfos)) {
+      suggestsInfos.map((suggest,i)=>{
+        suggests.push(
+          <Pressable key={i} style={{borderWidth:0.5,borderRadius:7,padding:2,marginLeft:"1%"}}><Text>{suggest.word}</Text></Pressable>
+        )
+      })
+    }
 
     return (
     <View style={styles.container}>
+      <Loader visible={isLoading} progress={loadingProgress} />
       {/*header*/}
       <View style={{width:"100%",height:isWeb ? screenHeight*0.09 : screenHeight*0.115,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",paddingTop:"0%",paddingHorizontal:"4%",paddingBottom:screenHeight*0.02,borderBottomWidth:0.5,borderColor:"black",backgroundColor:"white"}}>
         <Text style={{fontSize: screenHeight*0.03,fontWeight:"500"}}>Bibliothèque</Text>
